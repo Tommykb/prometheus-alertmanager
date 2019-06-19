@@ -109,9 +109,6 @@ var (
 			VSendResolved: false,
 		},
 		Message: `{{ template "wechat.default.message" . }}`,
-		ToUser:  `{{ template "wechat.default.to_user" . }}`,
-		ToParty: `{{ template "wechat.default.to_party" . }}`,
-		ToTag:   `{{ template "wechat.default.to_tag" . }}`,
 		AgentID: `{{ template "wechat.default.agent_id" . }}`,
 	}
 
@@ -432,21 +429,40 @@ type WechatConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APISecret Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
-	CorpID    string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
-	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
-	APIURL    *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
-	ToUser    string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
-	ToParty   string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
-	ToTag     string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
-	AgentID   string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	APISecret   Secret `yaml:"api_secret,omitempty" json:"api_secret,omitempty"`
+	CorpID      string `yaml:"corp_id,omitempty" json:"corp_id,omitempty"`
+	Message     string `yaml:"message,omitempty" json:"message,omitempty"`
+	APIURL      *URL   `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	ToUser      string `yaml:"to_user,omitempty" json:"to_user,omitempty"`
+	ToParty     string `yaml:"to_party,omitempty" json:"to_party,omitempty"`
+	ToTag       string `yaml:"to_tag,omitempty" json:"to_tag,omitempty"`
+	AgentID     string `yaml:"agent_id,omitempty" json:"agent_id,omitempty"`
+	MessageType string `yaml:"message_type" json:"message_type"`
+	ToAppChat   string `yaml:"to_appchat,omitempty" json:"chat_id,omitempty"`
+	Title       string `yaml:"title,omitempty" json:"title,omitempty"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	URL         string `yaml:"url,omitempty" json:"url,omitempty"`
+	Btntxt      string `yaml:"btn_txt,omitempty" json:"btn_txt,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *WechatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = DefaultWechatConfig
 	type plain WechatConfig
-	return unmarshal((*plain)(c))
+
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.ToAppChat != "" && (c.ToUser+c.ToParty+c.ToTag != "") {
+		return fmt.Errorf("to_user/to_party/to_tag is meaningless when to_appchat is set")
+	}
+	if c.ToAppChat+c.ToUser+c.ToParty+c.ToTag == "" {
+		return fmt.Errorf("to_user or to_party or to_tag or to_appchat is not set")
+	}
+	if c.MessageType != "text" && c.MessageType != "textcard" {
+		return fmt.Errorf("message_type must be text or textcard")
+	}
+	return nil
 }
 
 // OpsGenieConfig configures notifications via OpsGenie.
