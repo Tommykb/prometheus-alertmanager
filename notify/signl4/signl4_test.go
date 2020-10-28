@@ -32,9 +32,9 @@ func TestSignl4Retry(t *testing.T) {
 
 	notifier, err := New(
 		&config.Signl4Config{
-			HTTPConfig: &commoncfg.HTTPClientConfig{}
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
-		test.CreateTmpl(t),
+		test_team_secret.CreateTmpl(t),
 		log.NewNopLogger(),
 	)
 	if err != nil {
@@ -46,18 +46,3 @@ func TestSignl4Retry(t *testing.T) {
 	}
 }
 
-func TestSignl4TruncateAlerts(t *testing.T) {
-	alerts := make([]*types.Alert, 10)
-
-	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
-	require.Len(t, truncatedAlerts, 10)
-	require.EqualValues(t, numTruncated, 0)
-
-	truncatedAlerts, numTruncated = truncateAlerts(4, alerts)
-	require.Len(t, truncatedAlerts, 4)
-	require.EqualValues(t, numTruncated, 6)
-
-	truncatedAlerts, numTruncated = truncateAlerts(100, alerts)
-	require.Len(t, truncatedAlerts, 10)
-	require.EqualValues(t, numTruncated, 0)
-}
