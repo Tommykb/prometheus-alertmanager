@@ -78,14 +78,6 @@ type Message struct {
 	XS4Status           string `json:"X-S4-Status"`
 }
 
-func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
-	if maxAlerts != 0 && uint64(len(alerts)) > maxAlerts {
-		return alerts[:maxAlerts], uint64(len(alerts)) - maxAlerts
-	}
-
-	return alerts, 0
-}
-
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
@@ -122,8 +114,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	var url string
-	url = "https://connect.signl4.com/webhook/" + string(n.conf.TeamSecret)
+	var url string = "https://connect.signl4.com/webhook/" + string(n.conf.TeamSecret)
 	req, err := http.NewRequest("POST", url, &buf)
 	if err != nil {
 		return true, err

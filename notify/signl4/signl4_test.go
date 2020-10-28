@@ -23,19 +23,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/config"
-	"github.com/prometheus/alertmanager/notify/test"
+
 	"github.com/prometheus/alertmanager/types"
 )
 
 func TestSignl4Retry(t *testing.T) {
-	test, err := "1234"
-	if err != nil {
-		require.NoError(t, err)
-	}
+	test_team_secret := `1234`
+
 	notifier, err := New(
 		&config.Signl4Config{
-			TeamSecret: &config.TeamSecret{TeamSecret: test},
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			HTTPConfig: &commoncfg.HTTPClientConfig{}
 		},
 		test.CreateTmpl(t),
 		log.NewNopLogger(),
