@@ -264,6 +264,11 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wh.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, s4 := range rcv.Signl4Configs {
+			if s4.HTTPConfig == nil {
+				s4.HTTPConfig = c.Global.HTTPConfig
+			}
+		}
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
@@ -687,6 +692,7 @@ type Receiver struct {
 	PagerdutyConfigs []*PagerdutyConfig `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
+	Signl4Configs   []*Signl4Config     `yaml:"signl4_configs,omitempty" json:"signl4_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`

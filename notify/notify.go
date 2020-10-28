@@ -245,6 +245,7 @@ func newMetrics(r prometheus.Registerer) *metrics {
 		"slack",
 		"opsgenie",
 		"webhook",
+		"sign4",
 		"victorops",
 	} {
 		m.numNotifications.WithLabelValues(integration)
