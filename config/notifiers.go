@@ -32,6 +32,13 @@ var (
 		},
 	}
 
+	// DefaultSignl4Config defines default values for SIGNL4 configurations.
+	DefaultSignl4Config = Signl4Config{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+	}
+
 	// DefaultEmailConfig defines default values for Email configurations.
 	DefaultEmailConfig = EmailConfig{
 		NotifierConfig: NotifierConfig{
@@ -386,6 +393,34 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
 		return fmt.Errorf("scheme required for webhook url")
+	}
+	return nil
+}
+
+// Signl4Config configures notifications via a generic SIGNL4.
+type Signl4Config struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	TeamSecret              Secret `yaml:"team_secret,omitempty" json:"team_secret,omitempty"`
+	Title                   string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message                 string `yaml:"message,omitempty" json:"message,omitempty"`
+	XS4Service              string `yaml:"s4_service,omitempty" json:"s4_service,omitempty"`
+	XS4Location             string `yaml:"s4_location,omitempty" json:"s4_location,omitempty"`
+	XS4AlertingScenario     string `yaml:"s4_alerting_scenario,omitempty" json:"s4_alerting_scenario,omitempty"`
+	XS4Filtering            bool   `yaml:"s4_filtering" json:"s4_filtering,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Signl4Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultSignl4Config
+	type plain Signl4Config
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.TeamSecret == "" {
+		return fmt.Errorf("Missing Team Secret (team_secret) in SIGNL4 config.")
 	}
 	return nil
 }
