@@ -65,17 +65,17 @@ type Message struct {
 	*template.Data
 
 	// The protocol version.
-	Version         string `json:"version"`
-	GroupKey        string `json:"groupKey"`
+	Version  string `json:"version"`
+	GroupKey string `json:"groupKey"`
 
-	Title                   string `json:"Title"`
-	Message                 string `json:"Message"`
-	XS4Service              string `json:"X-S4-Service"`
-	XS4Location             string `json:"X-S4-Location"`
-	XS4AlertingScenario     string `json:"X-S4-AlertingScenario"`
-	XS4Filtering            bool   `json:"X-S4-Filtering"`
-	XS4ExternalID           string `json:"X-S4-ExternalID"`
-	XS4Status               string `json:"X-S4-Status"`
+	Title               string `json:"Title"`
+	Message             string `json:"Message"`
+	XS4Service          string `json:"X-S4-Service"`
+	XS4Location         string `json:"X-S4-Location"`
+	XS4AlertingScenario string `json:"X-S4-AlertingScenario"`
+	XS4Filtering        bool   `json:"X-S4-Filtering"`
+	XS4ExternalID       string `json:"X-S4-ExternalID"`
+	XS4Status           string `json:"X-S4-Status"`
 }
 
 func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, uint64) {
@@ -93,10 +93,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		level.Error(n.logger).Log("err", err)
 	}
-	
+
 	var (
-		alerts    = types.Alerts(as...)
-		data      = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
+		alerts = types.Alerts(as...)
+		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		status = "new"
 	)
 

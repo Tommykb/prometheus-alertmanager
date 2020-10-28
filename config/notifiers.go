@@ -403,13 +403,13 @@ type Signl4Config struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	TeamSecret              Secret `yaml:"team_secret,omitempty" json:"team_secret,omitempty"`
-	Title                   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message                 string `yaml:"message,omitempty" json:"message,omitempty"`
-	XS4Service              string `yaml:"s4_service,omitempty" json:"s4_service,omitempty"`
-	XS4Location             string `yaml:"s4_location,omitempty" json:"s4_location,omitempty"`
-	XS4AlertingScenario     string `yaml:"s4_alerting_scenario,omitempty" json:"s4_alerting_scenario,omitempty"`
-	XS4Filtering            bool   `yaml:"s4_filtering" json:"s4_filtering,omitempty"`
+	TeamSecret          Secret `yaml:"team_secret,omitempty" json:"team_secret,omitempty"`
+	Title               string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message             string `yaml:"message,omitempty" json:"message,omitempty"`
+	XS4Service          string `yaml:"s4_service,omitempty" json:"s4_service,omitempty"`
+	XS4Location         string `yaml:"s4_location,omitempty" json:"s4_location,omitempty"`
+	XS4AlertingScenario string `yaml:"s4_alerting_scenario,omitempty" json:"s4_alerting_scenario,omitempty"`
+	XS4Filtering        bool   `yaml:"s4_filtering" json:"s4_filtering,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

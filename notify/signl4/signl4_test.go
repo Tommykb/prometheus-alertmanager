@@ -34,7 +34,7 @@ func TestSignl4Retry(t *testing.T) {
 	}
 	notifier, err := New(
 		&config.Signl4Config{
-			TeamSecret:        &config.TeamSecret{TeamSecret: test},
+			TeamSecret: &config.TeamSecret{TeamSecret: test},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
