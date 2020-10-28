@@ -45,4 +45,3 @@ func TestSignl4Retry(t *testing.T) {
 		require.Equal(t, expected, actual, fmt.Sprintf("error on status %d", statusCode))
 	}
 }
-
