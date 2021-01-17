@@ -430,7 +430,7 @@ func (n *MuteStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Ale
 	for _, a := range alerts {
 		// TODO(fabxc): increment total alerts counter.
 		// Do not send the alert if muted.
-		if !n.muter.Mutes(a.Labels) {
+		if !n.muter.Mutes(a.Labels, a.GetExtraLabels()) {
 			filtered = append(filtered, a)
 		}
 		// TODO(fabxc): increment muted alerts counter if muted.
