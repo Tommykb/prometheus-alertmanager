@@ -28,13 +28,19 @@ import (
 	"github.com/prometheus/alertmanager/cli/format"
 
 	clientruntime "github.com/go-openapi/runtime/client"
+	commoncfg "github.com/prometheus/common/config"
 )
 
 var (
-	verbose         bool
-	alertmanagerURL *url.URL
-	output          string
-	timeout         time.Duration
+	verbose            bool
+	alertmanagerURL    *url.URL
+	caFile             string
+	certFile           string
+	keyFile            string
+	serverName         string
+	output             string
+	timeout            time.Duration
+	insecureSkipVerify bool
 
 	configFiles = []string{os.ExpandEnv("$HOME/.config/amtool/config.yml"), "/etc/amtool/config.yml"}
 	legacyFlags = map[string]string{"comment_required": "require-comment"}
@@ -83,6 +89,24 @@ func NewAlertmanagerClient(amURL *url.URL) *client.Alertmanager {
 		cr.DefaultAuthentication = clientruntime.BasicAuth(amURL.User.Username(), password)
 	}
 
+	tc := commoncfg.TLSConfig{
+		CAFile:             caFile,
+		CertFile:           certFile,
+		KeyFile:            keyFile,
+		ServerName:         serverName,
+		InsecureSkipVerify: insecureSkipVerify,
+	}
+	cfg := commoncfg.HTTPClientConfig{
+		TLSConfig: tc,
+	}
+
+	rt, err := commoncfg.NewRoundTripperFromConfig(cfg, "amtool", false, false)
+	// tlsConfig, err := commoncfg.NewTLSConfig(&tc)
+	if err != nil {
+		kingpin.Fatalf("%v\n", err)
+	}
+	cr.Transport = rt
+
 	return client.New(cr, strfmt.Default)
 }
 
@@ -96,6 +120,11 @@ func Execute() {
 
 	app.Flag("verbose", "Verbose running information").Short('v').BoolVar(&verbose)
 	app.Flag("alertmanager.url", "Alertmanager to talk to").URLVar(&alertmanagerURL)
+	app.Flag("tls_config.ca_file", "Path to CA file").ExistingFileVar(&caFile)
+	app.Flag("tls_config.cert_file", "Path to client certificate").ExistingFileVar(&certFile)
+	app.Flag("tls_config.key_file", "Path to client certificate key").ExistingFileVar(&keyFile)
+	app.Flag("tls_config.server_name", "Server name for TLS config").StringVar(&serverName)
+	app.Flag("tls_config.insecure_skip_verify", "Disable the TLS verification of server certificates").BoolVar(&insecureSkipVerify)
 	app.Flag("output", "Output formatter (simple, extended, json)").Short('o').Default("simple").EnumVar(&output, "simple", "extended", "json")
 	app.Flag("timeout", "Timeout for the executed command").Default("30s").DurationVar(&timeout)
 
@@ -139,6 +168,21 @@ static configuration:
 
 	alertmanager.url
 		Set a default alertmanager url for each request
+
+	tls_config.ca_file
+		Path to a CA certificate for the alertmanager server
+
+	tls_config.cert_file
+		Path to a client certificate for mTLS
+
+	tls_config.key_file
+		Path to a client certificate key for mTLS
+
+	tls_config.server_name
+		ServerName extension to indicate the name of the server
+
+	tls_config.insecure_skip_verify
+		Disable the TLS verification of server certificates
 
 	author
 		Set a default author value for new silences. If this argument is not
