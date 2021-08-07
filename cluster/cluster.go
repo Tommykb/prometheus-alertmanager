@@ -141,6 +141,7 @@ func Create(
 	tcpTimeout time.Duration,
 	probeTimeout time.Duration,
 	probeInterval time.Duration,
+	keys [][]byte,
 ) (*Peer, error) {
 	bindHost, bindPortStr, err := net.SplitHostPort(bindAddr)
 	if err != nil {
@@ -233,6 +234,15 @@ func Create(
 		p.setInitialFailed(resolvedPeers, fmt.Sprintf("%s:%d", advertiseHost, advertisePort))
 	} else {
 		p.setInitialFailed(resolvedPeers, bindAddr)
+	}
+
+	if len(keys) > 0 {
+		cfg.Keyring, err = memberlist.NewKeyring(keys, keys[0])
+		if err != nil {
+			return nil, errors.Wrap(err, "create keyring")
+		}
+		cfg.GossipVerifyIncoming = true
+		cfg.GossipVerifyOutgoing = true
 	}
 
 	ml, err := memberlist.Create(cfg)
