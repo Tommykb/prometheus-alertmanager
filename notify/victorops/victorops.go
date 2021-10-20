@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/go-kit/log"
@@ -71,7 +72,22 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 		apiURL = n.conf.APIURL.Copy()
 	)
-	apiURL.Path += fmt.Sprintf("%s/%s", n.conf.APIKey, tmpl(n.conf.RoutingKey))
+
+	var api_key_read string
+
+	apiKey := tmpl(string(n.conf.APIKey))
+
+	if n.conf.APIKey != "" {
+		api_key_read = apiKey
+	} else {
+		content, err := ioutil.ReadFile(n.conf.APIKeyFile)
+		if err != nil {
+			return false, err
+		}
+		api_key_read = string(content)
+	}
+
+	apiURL.Path += fmt.Sprintf("%s/%s", api_key_read, tmpl(n.conf.RoutingKey))
 	if err != nil {
 		return false, fmt.Errorf("templating error: %s", err)
 	}
