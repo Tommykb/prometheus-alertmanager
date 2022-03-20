@@ -349,8 +349,11 @@ func run() int {
 	var disp *dispatch.Dispatcher
 	defer disp.Stop()
 
-	groupFn := func(routeFilter func(*dispatch.Route) bool, alertFilter func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string) {
-		return disp.Groups(routeFilter, alertFilter)
+	groupFn := func(
+		routeFilter func(*dispatch.Route) bool,
+		alertFilter func(*types.Alert, time.Time) bool,
+		getReceiverStatus func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus) (dispatch.AlertGroups, map[model.Fingerprint][]types.Receiver) {
+		return disp.Groups(routeFilter, alertFilter, getReceiverStatus)
 	}
 
 	// An interface value that holds a nil concrete value is non-nil.
@@ -480,7 +483,7 @@ func run() int {
 		api.Update(conf, func(labels model.LabelSet) {
 			inhibitor.Mutes(labels)
 			silencer.Mutes(labels)
-		})
+		}, notify.ReceiverStatus(timeIntervals))
 
 		disp = dispatch.NewDispatcher(alerts, routes, pipeline, marker, timeoutFunc, nil, logger, dispMetrics)
 		routes.Walk(func(r *dispatch.Route) {

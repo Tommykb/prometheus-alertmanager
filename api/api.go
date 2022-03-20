@@ -73,7 +73,7 @@ type Options struct {
 	// GroupFunc returns a list of alert groups. The alerts are grouped
 	// according to the current active configuration. Alerts returned are
 	// filtered by the arguments provided to the function.
-	GroupFunc func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string)
+	GroupFunc func(func(*dispatch.Route) bool, func(*types.Alert, time.Time) bool, func(now time.Time, activeIntervalNames, muteIntervalNames []string) types.ReceiverStatus) (dispatch.AlertGroups, map[model.Fingerprint][]types.Receiver)
 }
 
 func (o Options) validate() error {
@@ -196,9 +196,10 @@ func (api *API) Register(r *route.Router, routePrefix string) *http.ServeMux {
 
 // Update config and resolve timeout of each API. APIv2 also needs
 // setAlertStatus to be updated.
-func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet)) {
+func (api *API) Update(cfg *config.Config, setAlertStatus func(model.LabelSet),
+	getReceiverStatus func(time.Time, []string, []string) types.ReceiverStatus) {
 	api.v1.Update(cfg)
-	api.v2.Update(cfg, setAlertStatus)
+	api.v2.Update(cfg, setAlertStatus, getReceiverStatus)
 }
 
 func (api *API) limitHandler(h http.Handler) http.Handler {
