@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -191,6 +192,22 @@ var DefaultFuncs = FuncMap{
 	},
 	"stringSlice": func(s ...string) []string {
 		return s
+	},
+	"toMap": func(s string) map[string]string {
+		m := make(map[string]string)
+		if err := json.Unmarshal([]byte(s), &m); err != nil {
+			panic(err)
+		} else {
+			return m
+		}
+	},
+	"toJson": func(o interface{}) string {
+		data, _ := json.Marshal(o)
+		return string(data)
+	},
+	"safeJson": func(o interface{}) string {
+		data, _ := json.Marshal(o)
+		return strings.Trim(string(data), "\"")
 	},
 }
 

@@ -99,8 +99,27 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 	}
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(msg); err != nil {
-		return false, err
+	if n.conf.JSON != "" {
+		body, err := n.tmpl.ExecuteTextString(n.conf.JSON, data)
+		if err != nil {
+			return false, err
+		}
+		if !json.Valid([]byte(body)) {
+			return false, fmt.Errorf("json format error: %s ", body)
+		}
+		if err := json.Indent(&buf, []byte(body), "", "  "); err != nil {
+			return false, fmt.Errorf("json format error: %s ", body)
+		}
+	} else if n.conf.Text != "" {
+		if body, err := n.tmpl.ExecuteTextString(n.conf.Text, data); err != nil {
+			return false, err
+		} else if _, err = buf.WriteString(body); err != nil {
+			return false, err
+		}
+	} else {
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
+			return false, err
+		}
 	}
 
 	var url string
