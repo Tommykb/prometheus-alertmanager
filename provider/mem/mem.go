@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/types"
@@ -44,6 +45,8 @@ type Alerts struct {
 	callback AlertStoreCallback
 
 	logger log.Logger
+
+	enforceLabelRules []config.LabelRule
 }
 
 type AlertStoreCallback interface {
@@ -85,20 +88,21 @@ func (a *Alerts) registerMetrics(r prometheus.Registerer) {
 }
 
 // NewAlerts returns a new alert provider.
-func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer) (*Alerts, error) {
+func NewAlerts(ctx context.Context, m types.Marker, intervalGC time.Duration, alertCallback AlertStoreCallback, l log.Logger, r prometheus.Registerer, enforceLabelRules []config.LabelRule) (*Alerts, error) {
 	if alertCallback == nil {
 		alertCallback = noopCallback{}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	a := &Alerts{
-		marker:    m,
-		alerts:    store.NewAlerts(),
-		cancel:    cancel,
-		listeners: map[int]listeningAlerts{},
-		next:      0,
-		logger:    log.With(l, "component", "provider"),
-		callback:  alertCallback,
+		marker:            m,
+		alerts:            store.NewAlerts(),
+		cancel:            cancel,
+		listeners:         map[int]listeningAlerts{},
+		next:              0,
+		logger:            log.With(l, "component", "provider"),
+		callback:          alertCallback,
+		enforceLabelRules: enforceLabelRules,
 	}
 	a.alerts.SetGCCallback(func(alerts []*types.Alert) {
 		for _, alert := range alerts {
@@ -199,6 +203,15 @@ func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
 // Put adds the given alert to the set.
 func (a *Alerts) Put(alerts ...*types.Alert) error {
 	for _, alert := range alerts {
+		// Enforce label rules exists then apply them into alerts
+		for _, rule := range a.enforceLabelRules {
+			if alert.Labels[model.LabelName(rule.Key)] == model.LabelValue(rule.Match) {
+				for k, v := range rule.Then {
+					alert.Labels[model.LabelName(k)] = model.LabelValue(v)
+				}
+			}
+		}
+
 		fp := alert.Fingerprint()
 
 		existing := false
