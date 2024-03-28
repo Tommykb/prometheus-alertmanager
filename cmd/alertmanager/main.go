@@ -303,7 +303,12 @@ func run() int {
 		go peer.Settle(ctx, *gossipInterval*10)
 	}
 
-	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer)
+	cfg, err := config.LoadFile(*configFile)
+	if err != nil {
+		level.Error(logger).Log("err", err)
+		return 1
+	}
+	alerts, err := mem.NewAlerts(context.Background(), marker, *alertGCInterval, nil, logger, prometheus.DefaultRegisterer, cfg.EnforceLabelRules)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		return 1

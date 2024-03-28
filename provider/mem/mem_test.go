@@ -86,7 +86,7 @@ func init() {
 // a listener can not unsubscribe as the lock is hold by `alerts.Lock`.
 func TestAlertsSubscribePutStarvation(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestDeadLock(t *testing.T) {
 
 func TestAlertsPut(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(ctx, marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestAlertsSubscribe(t *testing.T) {
 
 func TestAlertsGetPending(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 30*time.Minute, noopCallback{}, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestAlertsGetPending(t *testing.T) {
 
 func TestAlertsGC(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, noopCallback{}, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, noopCallback{}, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 	cb := &limitCountCallback{limit: 3}
 
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, cb, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, cb, log.NewNopLogger(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestAlertsStoreCallback(t *testing.T) {
 
 func TestAlerts_Count(t *testing.T) {
 	marker := types.NewMarker(prometheus.NewRegistry())
-	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, log.NewNopLogger(), nil)
+	alerts, err := NewAlerts(context.Background(), marker, 200*time.Millisecond, nil, log.NewNopLogger(), nil, nil)
 	require.NoError(t, err)
 
 	states := []types.AlertState{types.AlertStateActive, types.AlertStateSuppressed, types.AlertStateUnprocessed}
