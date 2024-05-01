@@ -153,7 +153,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.AlertSnapsho
 
 	var (
 		alias  = key.Hash()
-		alerts = types.Snapshot(as...)
+		alerts = types.AlertsSnapshot(as)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:

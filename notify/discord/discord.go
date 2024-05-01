@@ -93,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.AlertSnapshot) (bool
 
 	level.Debug(n.logger).Log("incident", key)
 
-	alerts := types.Snapshot(as...)
+	alerts := types.AlertsSnapshot(as)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {

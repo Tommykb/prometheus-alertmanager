@@ -449,26 +449,10 @@ func (as AlertsSnapshot) Status() model.AlertStatus {
 	return model.AlertResolved
 }
 
-func Snapshot(alerts ...*AlertSnapshot) AlertsSnapshot {
-	res := make(AlertsSnapshot, 0, len(alerts))
-	for _, alert := range alerts {
-		ac := *alert
-		if !ac.Resolved() {
-			ac.EndsAt = time.Time{}
-		}
-		res = append(res, &ac)
-	}
-	return res
-}
-
 func SnapshotAlerts(alerts []*Alert, now time.Time) AlertsSnapshot {
 	as := make(AlertsSnapshot, 0, len(alerts))
-	for _, alert := range alerts {
-		ac := *alert
-		if !ac.ResolvedAt(now) {
-			ac.EndsAt = time.Time{}
-		}
-		as = append(as, NewAlertSnapshot(&ac, now))
+	for _, a := range alerts {
+		as = append(as, NewAlertSnapshot(a, now))
 	}
 	return as
 }
