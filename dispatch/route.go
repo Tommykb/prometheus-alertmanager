@@ -36,6 +36,7 @@ var DefaultRouteOpts = RouteOpts{
 	GroupBy:           map[model.LabelName]struct{}{},
 	GroupByAll:        false,
 	MuteTimeIntervals: []string{},
+	WaitOnStartup:     false,
 }
 
 // A Route is a node that contains definitions of how to handle alerts.
@@ -89,6 +90,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	if cr.RepeatInterval != nil {
 		opts.RepeatInterval = time.Duration(*cr.RepeatInterval)
 	}
+	opts.WaitOnStartup = cr.WaitOnStartup
 
 	// Build matchers.
 	var matchers labels.Matchers
@@ -236,6 +238,9 @@ type RouteOpts struct {
 
 	// A list of time intervals for which the route is active.
 	ActiveTimeIntervals []string
+
+	// Honor the group_wait on initial startup even if incoming alerts are old
+	WaitOnStartup bool
 }
 
 func (ro *RouteOpts) String() string {
@@ -256,12 +261,14 @@ func (ro *RouteOpts) MarshalJSON() ([]byte, error) {
 		GroupWait      time.Duration    `json:"groupWait"`
 		GroupInterval  time.Duration    `json:"groupInterval"`
 		RepeatInterval time.Duration    `json:"repeatInterval"`
+		WaitOnStartup  bool             `json:"waitOnStartup"`
 	}{
 		Receiver:       ro.Receiver,
 		GroupByAll:     ro.GroupByAll,
 		GroupWait:      ro.GroupWait,
 		GroupInterval:  ro.GroupInterval,
 		RepeatInterval: ro.RepeatInterval,
+		WaitOnStartup:  ro.WaitOnStartup,
 	}
 	for ln := range ro.GroupBy {
 		v.GroupBy = append(v.GroupBy, ln)
