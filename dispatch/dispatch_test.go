@@ -609,6 +609,10 @@ func (r *recordStage) Alerts() []*types.Alert {
 	return alerts
 }
 
+func (r *recordStage) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	return time.Time{}, nil
+}
+
 func (r *recordStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -759,4 +763,49 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	mutedBy, isMuted = marker.Muted(route.ID(), aggrGroup1.GroupKey())
 	require.False(t, isMuted)
 	require.Empty(t, mutedBy)
+}
+
+func TestCalcDuration(t *testing.T) {
+	baseTime := time.Date(2024, 5, 26, 14, 33, 12, 100, time.UTC)
+
+	tests := map[string]struct {
+		lastTime      time.Time
+		now           time.Time
+		groupInterval time.Duration
+
+		expected time.Duration
+	}{
+		"next_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 10),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 17,
+		},
+		"exact_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 0,
+		},
+		"missed_one_exact_tick": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27 * 2),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 0,
+		},
+		"missed_few_ticks": {
+			lastTime:      baseTime,
+			now:           baseTime.Add(time.Second * 27 * 3).Add(time.Second * 10),
+			groupInterval: time.Second * 27,
+			expected:      time.Second * 17,
+		},
+	}
+
+	for name, tc := range tests {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			d := calcDuration(tc.now, tc.lastTime, tc.groupInterval)
+			require.Equal(t, tc.expected, d)
+		})
+	}
 }

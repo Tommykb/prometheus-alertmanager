@@ -339,6 +339,10 @@ func (d *Dispatcher) processAlert(alert *types.Alert, route *Route) {
 	d.aggrGroupsNum++
 	d.metrics.aggrGroups.Inc()
 
+	ag.syncFlushInterval(func(ctx context.Context) (time.Time, error) {
+		return d.stage.LastExecTime(ctx, d.logger)
+	})
+
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -429,6 +433,53 @@ func (ag *aggrGroup) String() string {
 	return ag.GroupKey()
 }
 
+func (ag *aggrGroup) syncFlushInterval(n func(ctx context.Context) (time.Time, error)) {
+	ag.mtx.Lock()
+	defer ag.mtx.Unlock()
+
+	ctx, cancel := context.WithCancel(ag.ctx)
+	defer cancel()
+	ctx = ag.populateContext(ctx)
+
+	lastTime, err := n(ctx)
+	if err != nil {
+		level.Error(ag.logger).Log("msg", "error on determining last exec time", "err", err)
+		return
+	}
+
+	if lastTime.IsZero() {
+		return
+	}
+
+	ag.hasFlushed = true
+	sleepDur := calcDuration(time.Now(), lastTime, ag.opts.GroupInterval)
+	ag.next.Reset(sleepDur)
+}
+
+func calcDuration(now, lastTime time.Time, groupInterval time.Duration) time.Duration {
+	durationPassed := now.Sub(lastTime)
+
+	rest := int64(durationPassed) % int64(groupInterval)
+	if time.Duration(rest).Milliseconds() <= 1 {
+		return time.Duration(rest)
+	}
+
+	return time.Duration(groupInterval.Nanoseconds() - rest)
+}
+
+func (ag *aggrGroup) populateContext(ctx context.Context) context.Context {
+	// Populate context with information needed along the pipeline.
+	ctx = notify.WithGroupInterval(ctx, ag.opts.GroupInterval)
+	ctx = notify.WithGroupKey(ctx, ag.GroupKey())
+	ctx = notify.WithGroupLabels(ctx, ag.labels)
+	ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
+	ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
+	ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
+	ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
+	ctx = notify.WithRouteID(ctx, ag.routeID)
+	return ctx
+}
+
 func (ag *aggrGroup) run(nf notifyFunc) {
 	defer close(ag.done)
 	defer ag.next.Stop()
@@ -445,15 +496,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			// Calculating the current time directly is prone to flaky behavior,
 			// which usually only becomes apparent in tests.
 			ctx = notify.WithNow(ctx, now)
-
-			// Populate context with information needed along the pipeline.
-			ctx = notify.WithGroupKey(ctx, ag.GroupKey())
-			ctx = notify.WithGroupLabels(ctx, ag.labels)
-			ctx = notify.WithReceiverName(ctx, ag.opts.Receiver)
-			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
-			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
-			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
-			ctx = notify.WithRouteID(ctx, ag.routeID)
+			ctx = ag.populateContext(ctx)
 
 			// Wait the configured interval before calling flush again.
 			ag.mtx.Lock()

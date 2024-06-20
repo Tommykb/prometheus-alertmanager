@@ -112,6 +112,7 @@ type notifyKey int
 const (
 	keyReceiverName notifyKey = iota
 	keyRepeatInterval
+	keyGroupInterval
 	keyGroupLabels
 	keyGroupKey
 	keyFiringAlerts
@@ -157,6 +158,11 @@ func WithRepeatInterval(ctx context.Context, t time.Duration) context.Context {
 	return context.WithValue(ctx, keyRepeatInterval, t)
 }
 
+// WithGroupInterval populates a context with a repeat interval.
+func WithGroupInterval(ctx context.Context, t time.Duration) context.Context {
+	return context.WithValue(ctx, keyGroupInterval, t)
+}
+
 // WithMuteTimeIntervals populates a context with a slice of mute time names.
 func WithMuteTimeIntervals(ctx context.Context, mt []string) context.Context {
 	return context.WithValue(ctx, keyMuteTimeIntervals, mt)
@@ -174,6 +180,13 @@ func WithRouteID(ctx context.Context, routeID string) context.Context {
 // second argument is false.
 func RepeatInterval(ctx context.Context) (time.Duration, bool) {
 	v, ok := ctx.Value(keyRepeatInterval).(time.Duration)
+	return v, ok
+}
+
+// GroupInterval extracts a group interval from the context. Iff none exists, the
+// second argument is false.
+func GroupInterval(ctx context.Context) (time.Duration, bool) {
+	v, ok := ctx.Value(keyGroupInterval).(time.Duration)
 	return v, ok
 }
 
@@ -243,6 +256,7 @@ func RouteID(ctx context.Context) (string, bool) {
 // A Stage processes alerts under the constraints of the given context.
 type Stage interface {
 	Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error)
+	LastExecTime(ctx context.Context, l log.Logger) (time.Time, error)
 }
 
 // StageFunc wraps a function to represent a Stage.
@@ -253,8 +267,19 @@ func (f StageFunc) Exec(ctx context.Context, l log.Logger, alerts ...*types.Aler
 	return f(ctx, l, alerts...)
 }
 
+func (f StageFunc) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	return time.Time{}, nil
+}
+
+type noopExecTime struct{}
+
+// LastExecTime implements the Stage interface.
+func (n noopExecTime) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	return time.Time{}, nil
+}
+
 type NotificationLog interface {
-	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration) error
+	Log(r *nflogpb.Receiver, gkey string, firingAlerts, resolvedAlerts []uint64, expiry time.Duration, dispatchTime time.Time) error
 	Query(params ...nflog.QueryParam) ([]*nflogpb.Entry, error)
 }
 
@@ -448,6 +473,20 @@ func createReceiverStage(
 // the context.
 type RoutingStage map[string]Stage
 
+// LastExecTime implements the Stage interface.
+func (rs RoutingStage) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	receiver, ok := ReceiverName(ctx)
+	if !ok {
+		return time.Time{}, errors.New("receiver missing")
+	}
+
+	s, ok := rs[receiver]
+	if !ok {
+		return time.Time{}, errors.New("stage for receiver missing")
+	}
+	return s.LastExecTime(ctx, l)
+}
+
 // Exec implements the Stage interface.
 func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
 	receiver, ok := ReceiverName(ctx)
@@ -465,6 +504,11 @@ func (rs RoutingStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.
 
 // A MultiStage executes a series of stages sequentially.
 type MultiStage []Stage
+
+// LastExecTime implements the Stage interface.
+func (ms MultiStage) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	return lastExecTime(ctx, ms, l)
+}
 
 // Exec implements the Stage interface.
 func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Alert) (context.Context, []*types.Alert, error) {
@@ -484,6 +528,11 @@ func (ms MultiStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.Al
 
 // FanoutStage executes its stages concurrently.
 type FanoutStage []Stage
+
+// LastExecTime implements the Stage interface.
+func (fs FanoutStage) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	return lastExecTime(ctx, fs, l)
+}
 
 // Exec attempts to execute all stages concurrently and discards the results.
 // It returns its input alerts and a types.MultiError if one or more stages fail.
@@ -512,6 +561,7 @@ func (fs FanoutStage) Exec(ctx context.Context, l log.Logger, alerts ...*types.A
 
 // GossipSettleStage waits until the Gossip has settled to forward alerts.
 type GossipSettleStage struct {
+	noopExecTime
 	peer Peer
 }
 
@@ -538,6 +588,7 @@ const (
 
 // MuteStage filters alerts through a Muter.
 type MuteStage struct {
+	noopExecTime
 	muter   types.Muter
 	metrics *Metrics
 }
@@ -583,6 +634,7 @@ func (n *MuteStage) Exec(ctx context.Context, logger log.Logger, alerts ...*type
 // WaitStage waits for a certain amount of time before continuing or until the
 // context is done.
 type WaitStage struct {
+	noopExecTime
 	wait func() time.Duration
 }
 
@@ -610,7 +662,6 @@ type DedupStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
 
-	now  func() time.Time
 	hash func(*types.Alert) uint64
 }
 
@@ -620,13 +671,8 @@ func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver)
 		rs:    rs,
 		nflog: l,
 		recv:  recv,
-		now:   utcNow,
 		hash:  hashAlert,
 	}
-}
-
-func utcNow() time.Time {
-	return time.Now().UTC()
 }
 
 // Wrap a slice in a struct so we can store a pointer in sync.Pool.
@@ -664,14 +710,16 @@ func hashAlert(a *types.Alert) uint64 {
 	return hash
 }
 
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration) bool {
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, dispatchTime time.Time, repeat, groupInterval time.Duration) bool {
 	// If we haven't notified about the alert group before, notify right away
 	// unless we only have resolved alerts.
 	if entry == nil {
 		return len(firing) > 0
 	}
 
-	if !entry.IsFiringSubset(firing) {
+	groupIntervalMuted := len(entry.FiringAlerts) > 0 && entry.DispatchTime.After(dispatchTime.Add(-groupInterval))
+
+	if !entry.IsFiringSubset(firing) && !groupIntervalMuted {
 		return true
 	}
 
@@ -686,12 +734,37 @@ func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint
 		return len(entry.FiringAlerts) > 0
 	}
 
-	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
+	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) && !groupIntervalMuted {
 		return true
 	}
 
 	// Nothing changed, only notify if the repeat interval has passed.
-	return entry.Timestamp.Before(n.now().Add(-repeat))
+	return entry.DispatchTime.Before(dispatchTime.Add(-repeat))
+}
+
+// LastExecTime implements the Stage interface.
+func (n *DedupStage) LastExecTime(ctx context.Context, l log.Logger) (time.Time, error) {
+	gkey, ok := GroupKey(ctx)
+	if !ok {
+		return time.Time{}, errors.New("group key missing")
+	}
+
+	entries, err := n.nflog.Query(nflog.QGroupKey(gkey), nflog.QReceiver(n.recv))
+	if err != nil && !errors.Is(err, nflog.ErrNotFound) {
+		return time.Time{}, err
+	}
+
+	switch len(entries) {
+	case 0:
+		return time.Time{}, nil
+	case 1:
+		if len(entries[0].FiringAlerts) > 0 {
+			return entries[0].DispatchTime, nil
+		}
+		return time.Time{}, nil
+	default:
+		return time.Time{}, fmt.Errorf("unexpected entry result size %d", len(entries))
+	}
 }
 
 // Exec implements the Stage interface.
@@ -704,6 +777,14 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 	repeatInterval, ok := RepeatInterval(ctx)
 	if !ok {
 		return ctx, nil, errors.New("repeat interval missing")
+	}
+	groupInterval, ok := GroupInterval(ctx)
+	if !ok {
+		return ctx, nil, errors.New("group interval missing")
+	}
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, nil, errors.New("dispatch time missing")
 	}
 
 	firingSet := map[uint64]struct{}{}
@@ -740,7 +821,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 		return ctx, nil, fmt.Errorf("unexpected entry result size %d", len(entries))
 	}
 
-	if n.needsUpdate(entry, firingSet, resolvedSet, repeatInterval) {
+	if n.needsUpdate(entry, firingSet, resolvedSet, now, repeatInterval, groupInterval) {
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil
@@ -749,6 +830,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ log.Logger, alerts ...*types.Al
 // RetryStage notifies via passed integration with exponential backoff until it
 // succeeds. It aborts if the context is canceled or timed out.
 type RetryStage struct {
+	noopExecTime
 	integration Integration
 	groupName   string
 	metrics     *Metrics
@@ -896,6 +978,7 @@ func (r RetryStage) exec(ctx context.Context, l log.Logger, alerts ...*types.Ale
 // SetNotifiesStage sets the notification information about passed alerts. The
 // passed alerts should have already been sent to the receivers.
 type SetNotifiesStage struct {
+	noopExecTime
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
 }
@@ -931,19 +1014,25 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l log.Logger, alerts ...*typ
 	}
 	expiry := 2 * repeat
 
-	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry)
+	now, ok := Now(ctx)
+	if !ok {
+		return ctx, nil, errors.New("now time missing")
+	}
+
+	return ctx, alerts, n.nflog.Log(n.recv, gkey, firing, resolved, expiry, now)
 }
 
 type timeStage struct {
 	muter   types.TimeMuter
 	marker  types.GroupMarker
 	metrics *Metrics
+	noopExecTime
 }
 
 type TimeMuteStage timeStage
 
 func NewTimeMuteStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeMuteStage {
-	return &TimeMuteStage{muter, marker, metrics}
+	return &TimeMuteStage{muter, marker, metrics, noopExecTime{}}
 }
 
 // Exec implements the stage interface for TimeMuteStage.
@@ -993,7 +1082,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l log.Logger, alerts ...*type
 type TimeActiveStage timeStage
 
 func NewTimeActiveStage(muter types.TimeMuter, marker types.GroupMarker, metrics *Metrics) *TimeActiveStage {
-	return &TimeActiveStage{muter, marker, metrics}
+	return &TimeActiveStage{muter, marker, metrics, noopExecTime{}}
 }
 
 // Exec implements the stage interface for TimeActiveStage.
@@ -1046,4 +1135,19 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l log.Logger, alerts ...*ty
 	}
 
 	return ctx, alerts, nil
+}
+
+func lastExecTime(ctx context.Context, stages []Stage, l log.Logger) (time.Time, error) {
+	t := time.Time{}
+	for _, s := range stages {
+		res, err := s.LastExecTime(ctx, l)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		if !res.IsZero() && (t.IsZero() || t.After(res)) {
+			t = res
+		}
+	}
+	return t, nil
 }
