@@ -183,6 +183,7 @@ var Assets = func() http.FileSystem {
 		fs["/static/favicon.ico"].(os.FileInfo),
 		fs["/static/index.html"].(os.FileInfo),
 		fs["/static/lib"].(os.FileInfo),
+		fs["/static/script.js"].(os.FileInfo),
 	}
 	fs["/static/lib"].(*vfsgen۰DirInfo).entries = []os.FileInfo{
 		fs["/static/lib/bootstrap-4.0.0-alpha.6-dist"].(os.FileInfo),
