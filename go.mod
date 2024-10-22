@@ -10,7 +10,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/coder/quartz v0.1.0
+	github.com/coder/quartz v0.1.2
 	github.com/emersion/go-smtp v0.21.3
 	github.com/go-kit/log v0.2.1
 	github.com/go-openapi/analysis v0.23.0
